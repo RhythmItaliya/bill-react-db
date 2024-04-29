@@ -232,14 +232,12 @@ router.post('/resend-verificationCode', async (req, res) => {
             return res.status(404).json({ message: 'User not found.', success: false });
         }
 
-        // Expire the old OTP
         await otps.update({ isExpires: true }, { where: { userId: user.id } });
 
-        // Generate a new OTP
         const generatedOTP = generateOTP();
+
         const expirationTime = new Date(Date.now() + OTP_EXPIRATION_TIME);
 
-        // Create a new OTP record
         await otps.create({
             otp: generatedOTP,
             userId: user.id,
