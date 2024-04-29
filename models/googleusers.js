@@ -40,6 +40,10 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       type: DataTypes.STRING
     },
+    googleToken: {
+      allowNull: false,
+      type: DataTypes.STRING
+    },
     uuid: {
       allowNull: false,
       type: DataTypes.UUID,

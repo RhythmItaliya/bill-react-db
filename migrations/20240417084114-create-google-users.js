@@ -33,6 +33,9 @@ module.exports = {
       sub: {
         type: Sequelize.STRING
       },
+      googleToken: {
+        type: Sequelize.STRING
+      },
       uuid: {
         allowNull: false,
         type: Sequelize.UUID

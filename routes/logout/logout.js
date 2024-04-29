@@ -3,6 +3,7 @@ const router = express.Router();
 const { Op } = require('sequelize');
 const { sessions, users, googleUsers } = require('../../models');
 const jwt = require('jsonwebtoken');
+const axios = require('axios');
 
 require('dotenv').config();
 
@@ -35,10 +36,13 @@ router.post('/', async function (req, res, next) {
             where: { uuid: decoded.uuid }
         });
 
+        let isGoogleUser = false;
+
         if (!user) {
             user = await googleUsers.findOne({
                 where: { uuid: decoded.uuid }
             });
+            isGoogleUser = true;
         }
 
         if (!user) {
@@ -58,6 +62,15 @@ router.post('/', async function (req, res, next) {
                 id: { [Op.ne]: lastSession.id }
             }
         });
+
+        if (isGoogleUser && user.googleToken) {
+            const response = await axios.post(`https://oauth2.googleapis.com/revoke?token=${user.googleToken}`);
+            if (response.status === 200) {
+                console.log({ success: true });
+            } else {
+                console.log({ success: false });
+            }
+        }
 
         return res.status(200).json({ success: true, message: 'Logout successful' });
 

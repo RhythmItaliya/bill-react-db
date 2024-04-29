@@ -33,7 +33,7 @@ app.use(passport.initialize());
 
 // Routes
 const authRoutes = require('./routes/authRoutes');
-app.use('/auth', authRoutes);
+app.use('/userAuth', authRoutes);
 
 const oauthRouter = require('./routes/gsiApi/oauth');
 const keysRouter = require('./routes/gsiApi/getKeys');
@@ -42,7 +42,6 @@ app.use('/getkeys', keysRouter);
 
 const passportRoute = require("./routes/googlepassport/auth");
 app.use('/auth', passportRoute);
-
 
 // catch 404 and forward to error handler
 app.use(function (req, res, next) {

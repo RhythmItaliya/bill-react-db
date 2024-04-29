@@ -67,7 +67,6 @@ router.get("/login/failed", (req, res) => {
 
 router.get("/logout", (req, res) => {
   req.logout();
-  req.session.destroy();
   res.redirect(CLIENT_URL);
 });
 
@@ -123,6 +122,7 @@ router.get(
               email_verified: email_verified,
               picture: picture,
               sub: sub,
+              googleToken: accessToken,
               token: NEW_TOKEN
             };
             const newUser = await googleUsers.create(userProfile);
@@ -134,6 +134,7 @@ router.get(
                 email_verified: email_verified,
                 picture: picture,
                 sub: sub,
+                googleToken: accessToken,
                 token: NEW_TOKEN
               },
               { where: { email: email } }
