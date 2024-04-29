@@ -8,11 +8,34 @@ const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
 const { v4: uuidv4, v1: uuidv1 } = require('uuid');
 const sendMail = require('../../mail/mailer');
-const { googleUsers, users } = require('../../models');
+const { googleUsers, users, otps, sessions } = require('../../models');
 const { corsOptions } = require('../../configuration/config');
+const session = require('express-session');
 
 require('dotenv').config();
 const NEW_TOKEN = uuidv1();
+const SESSION_ID = uuidv4();
+const CLIENT_URL = `${corsOptions.origin}/auth`;
+const OTP_EXPIRATION_TIME = 5 * 60 * 1000;
+
+function generateOTP() {
+    return Math.floor(10000 + Math.random() * 90000).toString();
+}
+
+router.use(session({
+    name: SESSION_ID,
+    genid: (req) => {
+        return uuidv4();
+    },
+    secret: process.env.SESSION_KEY,
+    resave: false,
+    saveUninitialized: true,
+    cookie: {
+        maxAge: 25 * 60 * 60 * 1000,
+        secure: true,
+        // httpOnly: true,
+    }
+}));
 
 const passwordSchema = new passwordValidator();
 passwordSchema
@@ -45,72 +68,200 @@ router.post('/register', [
             return res.status(400).json({ errors: errors.array(), success: false });
         }
 
-        const existingUsername = await users.findOne({ where: { username: req.body.username } });
-        if (existingUsername) {
+        const { username, email, password } = req.body;
+
+        const [userByUsernameResult, googleUserByUsernameResult] = await Promise.allSettled([
+            users.findOne({ where: { username } }),
+            googleUsers.findOne({ where: { nickname: username } })
+        ]);
+
+        if (userByUsernameResult.status === "fulfilled" && userByUsernameResult.value) {
             return res.status(400).json({ existingUsername: true, success: false });
         }
 
-        const existingEmail = await users.findOne({ where: { email: req.body.email } });
-        if (existingEmail) {
+        if (googleUserByUsernameResult.status === "fulfilled" && googleUserByUsernameResult.value) {
+            return res.status(400).json({ existingUsername: true, success: false });
+        }
+
+        const [userByEmailResult, googleUserByEmailResult] = await Promise.allSettled([
+            users.findOne({ where: { email } }),
+            googleUsers.findOne({ where: { email } })
+        ]);
+
+        if (userByEmailResult.status === "fulfilled" && userByEmailResult.value) {
             return res.status(400).json({ existingEmail: true, success: false });
         }
 
-        const hashedPassword = await bcrypt.hash(req.body.password, 10);
+        if (googleUserByEmailResult.status === "fulfilled" && googleUserByEmailResult.value) {
+            return res.status(400).json({ existingEmail: true, success: false });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
 
         const newUser = {
-            username: req.body.username,
-            email: req.body.email,
+            username: username,
+            email: email,
             password: hashedPassword,
             email_verified: false,
             token: NEW_TOKEN,
         };
 
-        const verificationToken = jwt.sign({ userUUID: newUser.uuid }, process.env.JWT_SECRET, { expiresIn: '1h' });
+        const createdUser = await users.create(newUser);
 
-        const verificationLink = `${corsOptions.origin}/auth/verify-email?token=${verificationToken}`;
+        const generatedOTP = generateOTP();
+        const expirationTime = new Date(Date.now() + OTP_EXPIRATION_TIME);
+
+        await otps.create({
+            otp: generatedOTP,
+            userId: createdUser.id,
+            expiresAt: expirationTime
+        });
+
 
         const emailSubject = 'Verify Your Email Address';
-        const emailBody = `Dear ${newUser.username},\n\nPlease click on the following link to verify your email address:\n${verificationLink}\n\nThank you,\nThe YourApp Team`;
+        const emailBody = `Dear ${newUser.username},\n\nPlease use the following OTP to verify your email address: ${generatedOTP}\n\nThank you,\nThe YourApp Team`;
+        await sendMail(newUser.email, emailSubject, emailBody);
 
         try {
             await sendMail(newUser.email, emailSubject, emailBody);
+            res.status(201).json({ success: true, emailSend: true });
         } catch (error) {
             console.error('Error sending verification email:', error);
-            return res.status(500).json({ error: 'Error sending verification email', success: false });
+            return res.status(400).json({ success: false, emailSendFail: true });
         }
-
-        await users.create(newUser);
-
-        return res.status(201).json({ message: 'User registered successfully. Please check your email for verification instructions.', success: true });
     } catch (error) {
         console.error('Error registering user:', error);
-        return res.status(500).json({ error: 'Internal server error' });
+        return res.status(500).json({ error: 'Internal server error', success: false });
     }
 });
 
-router.get('/verify-email', async (req, res) => {
+router.post('/two-step-verification/verify', async (req, res) => {
     try {
-        const { token } = req.query;
+        const { email, otp } = req.body;
 
-        if (!token) {
-            return res.status(400).json({ error: 'Token is required' });
-        }
-
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-        const user = await users.findOne({ where: { uuid: decoded.userUUID } });
+        const user = await users.findOne({ where: { email } });
 
         if (!user) {
-            return res.status(404).json({ error: 'User not found' });
+            return res.status(404).json({ message: 'User not found.', success: false });
         }
 
-        await user.update({ email_verified: true });
+        const otpRecord = await otps.findOne({
+            where: {
+                userId: user.id,
+                otp: otp,
+                expiresAt: { [Op.gt]: new Date() }
+            }
+        });
 
-        return res.status(200).json({ message: 'Email verified successfully' });
+        if (!otpRecord) {
+            return res.status(400).json({ message: 'Invalid OTP.', success: false });
+        }
+
+        if (otpRecord.isExpires) {
+            return res.status(400).json({ message: 'OTP is isExpired.', success: false });
+        }
+
+        if (otpRecord.isVerified) {
+            return res.status(400).json({ message: 'OTP already verified.', success: false });
+        }
+
+        otpRecord.isVerified = true;
+        await otps.update({ isVerified: true }, { where: { id: otpRecord.id } });
+
+        const allOtpsVerified = await otps.count({
+            where: {
+                userId: user.id,
+                isVerified: false
+            }
+        }) === 0;
+
+        if (allOtpsVerified) {
+            await users.update({ email_verified: true }, { where: { id: user.id } });
+
+            await otps.update({ isExpires: true }, { where: { userId: user.id } });
+
+            const sessionData = {
+                sessionId: SESSION_ID,
+                userId: user.id,
+                expires: new Date(Date.now() + 25 * 60 * 60 * 1000),
+                data: JSON.stringify({
+                    sessionId: SESSION_ID,
+                    userUuid: user.uuid,
+                    expires: new Date(Date.now() + 25 * 60 * 60 * 1000).toISOString(),
+                    createdAt: new Date().toISOString()
+                })
+            };
+
+            const session = await sessions.create(sessionData);
+
+            const token = jwt.sign({ uuid: user.uuid }, process.env.JWT_SECRET);
+
+            const oneTimeToken = jwt.sign({ token: user.token }, process.env.ONE_TIME_TOKEN_SECRET);
+
+            const redirectData = {
+                name: user.username,
+                token: token,
+                email: user.email,
+                sessionName: sessionData.sessionId,
+                sessionExpire: sessionData.expires,
+                oneTimeToken: oneTimeToken
+            };
+
+            const queryString = Object.keys(redirectData).map(key => `${encodeURIComponent(key)}=${encodeURIComponent(redirectData[key])}`).join('&');
+            const redirectQueryString = `${CLIENT_URL}?${queryString}`;
+
+            res.status(200).json({ success: true, redirectQueryString });
+        } else {
+            res.status(400).json({ message: 'Not all OTPs have been verified yet.', success: false });
+        }
+
     } catch (error) {
-        console.error('Error verifying email:', error);
-        return res.status(500).json({ error: 'Internal server error' });
+        console.error('Error verifying OTP:', error);
+        res.status(500).json({ message: 'Internal server error.', success: false });
     }
 });
+
+
+router.post('/resend-verificationCode', async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        const user = await users.findOne({ where: { email } });
+
+        if (!user) {
+            return res.status(404).json({ message: 'User not found.', success: false });
+        }
+
+        // Expire the old OTP
+        await otps.update({ isExpires: true }, { where: { userId: user.id } });
+
+        // Generate a new OTP
+        const generatedOTP = generateOTP();
+        const expirationTime = new Date(Date.now() + OTP_EXPIRATION_TIME);
+
+        // Create a new OTP record
+        await otps.create({
+            otp: generatedOTP,
+            userId: user.id,
+            expiresAt: expirationTime
+        });
+
+        const emailSubject = 'Resend Verification Code';
+        const emailBody = `Dear ${user.username},\n\nYour new OTP is: ${generatedOTP}\n\nThank you,\nThe YourApp Team`;
+
+        try {
+            await sendMail(user.email, emailSubject, emailBody);
+            return res.status(201).json({ success: true, emailSent: true });
+        } catch (error) {
+            console.error('Error sending verification email:', error);
+            return res.status(400).json({ success: false, emailSendFail: true });
+        }
+    } catch (error) {
+        console.error('Error resending verification code:', error);
+        return res.status(500).json({ message: 'Internal server error.', success: false });
+    }
+});
+
+
 
 module.exports = router;
