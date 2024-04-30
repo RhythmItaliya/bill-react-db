@@ -36,6 +36,16 @@ module.exports = {
       googleToken: {
         type: Sequelize.STRING
       },
+      setPassword: {
+        allowNull: false,
+        type: Sequelize.BOOLEAN,
+        defaultValue: false,
+      },
+      setNickname: {
+        allowNull: false,
+        type: Sequelize.BOOLEAN,
+        defaultValue: false,
+      },
       uuid: {
         allowNull: false,
         type: Sequelize.UUID

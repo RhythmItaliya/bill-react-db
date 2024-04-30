@@ -176,9 +176,10 @@ router.post('/two-step-verification/verify', async (req, res) => {
         }) === 0;
 
         if (allOtpsVerified) {
+
             await users.update({ email_verified: true }, { where: { id: user.id } });
 
-            await otps.update({ isExpires: true }, { where: { userId: user.id } });
+            await otps.destroy({ where: { userId: user.id } });
 
             const sessionData = {
                 sessionId: SESSION_ID,
@@ -232,7 +233,7 @@ router.post('/resend-verificationCode', async (req, res) => {
             return res.status(404).json({ message: 'User not found.', success: false });
         }
 
-        await otps.update({ isExpires: true }, { where: { userId: user.id } });
+        await otps.destroy({ where: { userId: user.id } });
 
         const generatedOTP = generateOTP();
 
@@ -254,11 +255,13 @@ router.post('/resend-verificationCode', async (req, res) => {
             console.error('Error sending verification email:', error);
             return res.status(400).json({ success: false, emailSendFail: true });
         }
+
     } catch (error) {
         console.error('Error resending verification code:', error);
         return res.status(500).json({ message: 'Internal server error.', success: false });
     }
 });
+
 
 
 
