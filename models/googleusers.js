@@ -18,6 +18,9 @@ module.exports = (sequelize, DataTypes) => {
     name: {
       type: DataTypes.STRING
     },
+    username: {
+      type: DataTypes.STRING
+    },
     email: {
       allowNull: false,
       type: DataTypes.STRING
@@ -29,9 +32,6 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       type: DataTypes.BOOLEAN,
       defaultValue: false,
-    },
-    nickname: {
-      type: DataTypes.STRING
     },
     picture: {
       type: DataTypes.STRING
@@ -49,7 +49,7 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.BOOLEAN,
       defaultValue: false,
     },
-    setNickname: {
+    setUsername: {
       allowNull: false,
       type: DataTypes.BOOLEAN,
       defaultValue: false,
@@ -62,6 +62,11 @@ module.exports = (sequelize, DataTypes) => {
     token: {
       allowNull: false,
       type: DataTypes.UUID,
+    },
+    auth: {
+      allowNull: false,
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV1
     },
   }, {
     sequelize,

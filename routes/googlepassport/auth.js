@@ -121,9 +121,11 @@ router.get(
               email: email,
               email_verified: email_verified,
               picture: picture,
+              setPassword: false,
+              setUsername: false,
               sub: sub,
               googleToken: accessToken,
-              token: NEW_TOKEN
+              token: NEW_TOKEN,
             };
             const newUser = await googleUsers.create(userProfile);
             existingUser = newUser;
@@ -131,6 +133,7 @@ router.get(
             await googleUsers.update(
               {
                 name: displayName,
+                email: email,
                 email_verified: email_verified,
                 picture: picture,
                 sub: sub,
@@ -149,7 +152,9 @@ router.get(
 
           const token = await jwt.sign({ uuid: existingUser.uuid }, process.env.JWT_SECRET);
 
-          const oneTimeToken = jwt.sign({ token: existingUser.token }, process.env.ONE_TIME_TOKEN_SECRET);
+          const token2 = await jwt.sign({ auth: existingUser.auth }, process.env.JWT_SECRET_TOKEN);
+
+          const oneTimeToken = await jwt.sign({ token: existingUser.token }, process.env.ONE_TIME_TOKEN_SECRET);
 
           const sessionData = {
             sessionId: SESSION_ID,
@@ -168,8 +173,8 @@ router.get(
           const redirectData = {
             name: displayName,
             token: token,
+            token2: token2,
             email: email,
-            picture: picture,
             sessionName: sessionData.sessionId,
             sessionExpire: sessionData.expires,
             oneTimeToken: oneTimeToken

@@ -9,8 +9,10 @@ module.exports = {
         primaryKey: true,
         type: Sequelize.INTEGER
       },
+      name: {
+        type: Sequelize.STRING
+      },
       username: {
-        allowNull: false,
         type: Sequelize.STRING
       },
       email: {
@@ -26,11 +28,28 @@ module.exports = {
         type: Sequelize.BOOLEAN,
         defaultValue: false
       },
+      picture: {
+        type: Sequelize.STRING
+      },
+      setPassword: {
+        allowNull: false,
+        type: Sequelize.BOOLEAN,
+        defaultValue: false,
+      },
+      setUsername: {
+        allowNull: false,
+        type: Sequelize.BOOLEAN,
+        defaultValue: false,
+      },
+      uuid: {
+        allowNull: false,
+        type: Sequelize.UUID
+      },
       token: {
         allowNull: false,
         type: Sequelize.UUID
       },
-      uuid: {
+      auth: {
         allowNull: false,
         type: Sequelize.UUID
       },

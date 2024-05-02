@@ -12,6 +12,9 @@ module.exports = {
       name: {
         type: Sequelize.STRING
       },
+      username: {
+        type: Sequelize.STRING
+      },
       email: {
         allowNull: false,
         type: Sequelize.STRING
@@ -23,9 +26,6 @@ module.exports = {
         allowNull: false,
         type: Sequelize.BOOLEAN,
         defaultValue: false
-      },
-      nickname: {
-        type: Sequelize.STRING
       },
       picture: {
         type: Sequelize.STRING
@@ -41,7 +41,7 @@ module.exports = {
         type: Sequelize.BOOLEAN,
         defaultValue: false,
       },
-      setNickname: {
+      setUsername: {
         allowNull: false,
         type: Sequelize.BOOLEAN,
         defaultValue: false,
@@ -51,6 +51,10 @@ module.exports = {
         type: Sequelize.UUID
       },
       token: {
+        allowNull: false,
+        type: Sequelize.UUID
+      },
+      auth: {
         allowNull: false,
         type: Sequelize.UUID
       },

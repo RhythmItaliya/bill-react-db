@@ -80,13 +80,16 @@ router.post('/login', [
 
         const session = await sessions.create(sessionData);
 
-        const token = jwt.sign({ uuid: user.uuid }, process.env.JWT_SECRET);
+        const token = await jwt.sign({ uuid: user.uuid }, process.env.JWT_SECRET);
 
-        const oneTimeToken = jwt.sign({ token: user.token }, process.env.ONE_TIME_TOKEN_SECRET);
+        const token2 = await jwt.sign({ auth: user.auth }, process.env.JWT_SECRET_TOKEN);
+
+        const oneTimeToken = await jwt.sign({ token: user.token }, process.env.ONE_TIME_TOKEN_SECRET);
 
         const redirectData = {
-            name: user.username,
+            name: user.name,
             token: token,
+            token2: token2,
             email: user.email,
             sessionName: sessionData.sessionId,
             sessionExpire: sessionData.expires,
@@ -111,58 +114,88 @@ router.post('/login', [
     }
 });
 
-router.post(
-    '/verify',
-    async (req, res) => {
-        try {
-            const errors = validationResult(req);
-            if (!errors.isEmpty()) {
-                return res.status(400).json({ error: "Bad Request", message: errors.array()[0].msg, success: false });
-            }
-
-            const { uuid, token } = req.body;
-            if (!uuid || !token) {
-                return res.status(400).json({ error: "Bad Request", message: "UUID and token are required" });
-            }
-
-            let decodedUUID, decodedTOKEN;
-            try {
-                decodedUUID = jwt.verify(uuid, process.env.JWT_SECRET);
-                decodedTOKEN = jwt.verify(token, process.env.ONE_TIME_TOKEN_SECRET);
-            } catch (error) {
-                return res.status(401).json({ error: "Unauthorized", message: "Invalid token", success: false });
-            }
-
-            if (typeof decodedUUID !== 'object' || typeof decodedTOKEN !== 'object') {
-                return res.status(401).json({ error: "Unauthorized", message: "Invalid token", success: false });
-            }
-
-            let user = await users.findOne({ where: { uuid: decodedUUID.uuid } });
-
-            if (!user) {
-                user = await googleUsers.findOne({ where: { uuid: decodedUUID.uuid } });
-            }
-
-            if (!user) {
-                return res.status(404).json({ error: "Not Found", message: "User not found", success: false });
-            }
-
-            if (decodedTOKEN.token !== user.token) {
-                return res.status(401).json({ error: "Unauthorized", message: "Tokens do not match", success: false });
-            }
-
-            const updatedUser = await user.update({ token: NEW_TOKEN });
-            if (!updatedUser) {
-                return res.status(500).json({ error: "Internal Server Error", message: "Failed to update token", success: false });
-            }
-
-            return res.status(200).json({ message: "Token verified and updated successfully", success: true });
-        } catch (e) {
-            console.error(e);
-            return res.status(500).json({ error: "Internal Server Error", message: "An error occurred while processing your request." });
+router.post('/verify', async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ error: "Bad Request", message: errors.array()[0].msg, success: false });
         }
-    }
-);
 
+        const { uuid, token } = req.body;
+        if (!uuid || !token) {
+            return res.status(400).json({ error: "Bad Request", message: "UUID and token are required" });
+        }
+
+        let decodedUUID, decodedTOKEN;
+        try {
+            decodedUUID = jwt.verify(uuid, process.env.JWT_SECRET);
+            decodedTOKEN = jwt.verify(token, process.env.ONE_TIME_TOKEN_SECRET);
+        } catch (error) {
+            return res.status(401).json({ error: "Unauthorized", message: "Invalid token", success: false });
+        }
+
+        if (typeof decodedUUID !== 'object' || typeof decodedTOKEN !== 'object') {
+            return res.status(401).json({ error: "Unauthorized", message: "Invalid token", success: false });
+        }
+
+        let user = await users.findOne({ where: { uuid: decodedUUID.uuid } });
+
+        if (!user) {
+            user = await googleUsers.findOne({ where: { uuid: decodedUUID.uuid } });
+        }
+
+        if (!user || decodedTOKEN.token !== user.token) {
+            return res.status(401).json({ error: "Unauthorized", message: "User not found or tokens do not match", success: false });
+        }
+
+        await user.update({ token: NEW_TOKEN });
+
+        return res.status(200).json({ message: "Token verified and updated successfully", success: true });
+    } catch (e) {
+        console.error(e);
+        return res.status(500).json({ error: "Internal Server Error", message: "An error occurred while processing your request." });
+    }
+});
+
+router.post('/firewall', async (req, res) => {
+    try {
+        const errors = validationResult(req);
+        if (!errors.isEmpty()) {
+            return res.status(400).json({ error: "Bad Request", message: errors.array()[0].msg, success: false });
+        }
+
+        const { uuid, token } = req.body;
+        if (!uuid || !token) {
+            return res.status(400).json({ error: "Bad Request", message: "UUID and token are required" });
+        }
+
+        let decodedUUID, decodedTOKEN;
+        try {
+            decodedUUID = jwt.verify(uuid, process.env.JWT_SECRET);
+            decodedTOKEN = jwt.verify(token, process.env.JWT_SECRET_TOKEN);
+        } catch (error) {
+            return res.status(401).json({ error: "Unauthorized", message: "Invalid token", success: false });
+        }
+
+        if (typeof decodedUUID !== 'object' || typeof decodedTOKEN !== 'object') {
+            return res.status(401).json({ error: "Unauthorized", message: "Invalid token", success: false });
+        }
+
+        let user = await users.findOne({ where: { uuid: decodedUUID.uuid } });
+
+        if (!user) {
+            user = await googleUsers.findOne({ where: { uuid: decodedUUID.uuid } });
+        }
+
+        if (user.auth !== decodedTOKEN.auth) {
+            return res.status(401).json({ error: "Unauthorized", message: "Token does not match user's auth", success: false });
+        }
+
+        return res.status(200).json({ message: "Token verified and updated successfully", success: true });
+    } catch (e) {
+        console.error(e);
+        return res.status(500).json({ error: "Internal Server Error", message: "An error occurred while processing your request." });
+    }
+});
 
 module.exports = router;

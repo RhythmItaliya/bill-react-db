@@ -35,6 +35,9 @@ app.use(passport.initialize());
 const authRoutes = require('./routes/authRoutes');
 app.use('/userAuth', authRoutes);
 
+const profileRoute = require("./routes/profileRoutes");
+app.use('/profile', profileRoute);
+
 const oauthRouter = require('./routes/gsiApi/oauth');
 const keysRouter = require('./routes/gsiApi/getKeys');
 app.use('/oauth', oauthRouter);

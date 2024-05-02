@@ -16,8 +16,10 @@ module.exports = (sequelize, DataTypes) => {
     }
   }
   users.init({
+    name: {
+      type: DataTypes.STRING
+    },
     username: {
-      allowNull: false,
       type: DataTypes.STRING
     },
     email: {
@@ -33,6 +35,19 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.BOOLEAN,
       defaultValue: false
     },
+    picture: {
+      type: DataTypes.STRING
+    },
+    setPassword: {
+      allowNull: false,
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
+    setUsername: {
+      allowNull: false,
+      type: DataTypes.BOOLEAN,
+      defaultValue: false,
+    },
     token: {
       allowNull: false,
       type: DataTypes.UUID
@@ -41,6 +56,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4
+    },
+    auth: {
+      allowNull: false,
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV1
     },
   }, {
     sequelize,

@@ -50,7 +50,7 @@ passwordSchema
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 router.post('/register', [
-    body('username').notEmpty().withMessage('Username is required'),
+    body('name').notEmpty().withMessage('name is required'),
     body('email').notEmpty().withMessage('Email is required')
         .matches(emailRegex).withMessage('Invalid email format'),
     body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters long')
@@ -68,20 +68,7 @@ router.post('/register', [
             return res.status(400).json({ errors: errors.array(), success: false });
         }
 
-        const { username, email, password } = req.body;
-
-        const [userByUsernameResult, googleUserByUsernameResult] = await Promise.allSettled([
-            users.findOne({ where: { username } }),
-            googleUsers.findOne({ where: { nickname: username } })
-        ]);
-
-        if (userByUsernameResult.status === "fulfilled" && userByUsernameResult.value) {
-            return res.status(400).json({ existingUsername: true, success: false });
-        }
-
-        if (googleUserByUsernameResult.status === "fulfilled" && googleUserByUsernameResult.value) {
-            return res.status(400).json({ existingUsername: true, success: false });
-        }
+        const { name, email, password } = req.body;
 
         const [userByEmailResult, googleUserByEmailResult] = await Promise.allSettled([
             users.findOne({ where: { email } }),
@@ -99,10 +86,12 @@ router.post('/register', [
         const hashedPassword = await bcrypt.hash(password, 10);
 
         const newUser = {
-            username: username,
+            name: name,
             email: email,
             password: hashedPassword,
             email_verified: false,
+            setPassword: true,
+            setUsername: false,
             token: NEW_TOKEN,
         };
 
@@ -116,7 +105,6 @@ router.post('/register', [
             userId: createdUser.id,
             expiresAt: expirationTime
         });
-
 
         const emailSubject = 'Verify Your Email Address';
         const emailBody = `Dear ${newUser.username},\n\nPlease use the following OTP to verify your email address: ${generatedOTP}\n\nThank you,\nThe YourApp Team`;
@@ -195,13 +183,16 @@ router.post('/two-step-verification/verify', async (req, res) => {
 
             const session = await sessions.create(sessionData);
 
-            const token = jwt.sign({ uuid: user.uuid }, process.env.JWT_SECRET);
+            const token = await jwt.sign({ uuid: user.uuid }, process.env.JWT_SECRET);
 
-            const oneTimeToken = jwt.sign({ token: user.token }, process.env.ONE_TIME_TOKEN_SECRET);
+            const token2 = await jwt.sign({ auth: user.auth }, process.env.JWT_SECRET_TOKEN);
+
+            const oneTimeToken = await jwt.sign({ token: user.token }, process.env.ONE_TIME_TOKEN_SECRET);
 
             const redirectData = {
                 name: user.username,
                 token: token,
+                token2: token2,
                 email: user.email,
                 sessionName: sessionData.sessionId,
                 sessionExpire: sessionData.expires,
