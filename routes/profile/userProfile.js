@@ -55,7 +55,6 @@ function extractUserData(user) {
         email_verified: user.email_verified,
         setPassword: user.setPassword,
         setUsername: user.setUsername,
-        uuid: user.uuid
     };
 }
 
