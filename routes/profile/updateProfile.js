@@ -1,5 +1,4 @@
 // routes/profile/updateProfile.js
-
 const express = require('express');
 const router = express.Router();
 const jwt = require('jsonwebtoken');
@@ -10,14 +9,13 @@ require('dotenv').config();
 
 router.put('/users/:uuid', async (req, res) => {
     try {
-        const { token } = req.body;
+        const { token, email, username } = req.body;
 
         if (!token) {
             return res.status(400).json({ error: "Bad Request", message: "Token is required", success: false });
         }
 
         let decodedUUID;
-
         try {
             decodedUUID = jwt.verify(token, process.env.JWT_SECRET);
         } catch (error) {
@@ -27,24 +25,49 @@ router.put('/users/:uuid', async (req, res) => {
         const { uuid } = decodedUUID;
 
         let user = await users.findOne({ where: { uuid: uuid } });
+        let isGoogleUser = false;
 
         if (!user) {
             user = await googleUsers.findOne({ where: { uuid: uuid } });
+            isGoogleUser = true;
         }
 
         if (!user) {
             return res.status(404).json({ error: "User not found", message: "User does not exist", success: false });
         }
 
+        if (email && email !== user.email) {
+            const existingEmailUser = await users.findOne({ where: { email: email } });
+            const existingGoogleEmailUser = await googleUsers.findOne({ where: { email: email } });
+
+            if (existingEmailUser || existingGoogleEmailUser) {
+                return res.status(400).json({ error: "Email already exists", message: "The provided email is already in use", success: false });
+            }
+        }
+
+        if (username && username !== user.username) {
+            const existingUsernameUser = await users.findOne({ where: { username: username } });
+            const existingGoogleUsernameUser = await googleUsers.findOne({ where: { username: username } });
+
+            if (existingUsernameUser || existingGoogleUsernameUser) {
+                return res.status(400).json({ error: "Username already exists", message: "The provided username is already in use", success: false });
+            }
+        }
+
         const userData = {
             name: req.body.name,
             username: req.body.username,
+            email: req.body.email,
             email_verified: req.body.email_verified || false,
             picture: req.body.picture,
             setUsername: !!req.body.username,
         };
 
-        await user.update(userData);
+        if (isGoogleUser) {
+            await googleUsers.update(userData, { where: { uuid: uuid } });
+        } else {
+            await users.update(userData, { where: { uuid: uuid } });
+        }
 
         res.status(200).json(user);
     } catch (error) {
@@ -52,6 +75,7 @@ router.put('/users/:uuid', async (req, res) => {
         res.status(500).json({ error: "Internal server error", message: "Something went wrong", success: false });
     }
 });
+
 
 router.post('/verify-old-password', async (req, res) => {
     try {
