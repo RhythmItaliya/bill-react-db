@@ -53,7 +53,6 @@ function extractUserData(user) {
         email: user.email,
         picture: user.picture,
         email_verified: user.email_verified,
-        setPassword: user.setPassword,
         setUsername: user.setUsername,
     };
 }

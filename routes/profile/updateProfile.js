@@ -69,12 +69,56 @@ router.put('/users/:uuid', async (req, res) => {
             await users.update(userData, { where: { uuid: uuid } });
         }
 
-        res.status(200).json(user);
+        res.status(200).json(userData);
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: "Internal server error", message: "Something went wrong", success: false });
     }
 });
+
+
+router.get('/password-set', async (req, res) => {
+    try {
+        const { token } = req.query;
+
+        if (!token) {
+            return res.status(400).json({ error: "Bad Request", message: "Token is required", success: false });
+        }
+
+        let decodedUUID;
+
+        try {
+            decodedUUID = jwt.verify(token, process.env.JWT_SECRET);
+        } catch (error) {
+            return res.status(401).json({ error: "Unauthorized", message: "Invalid token", success: false });
+        }
+
+        const { uuid } = decodedUUID;
+
+        try {
+            let user = await users.findOne({ where: { uuid: uuid } });
+
+            if (!user) {
+                user = await googleUsers.findOne({ where: { uuid: uuid } });
+            }
+
+            if (!user) {
+                return res.status(404).json({ error: "Not Found", message: "User not found", success: false });
+            }
+
+            const passwordSet = !!user.setPassword;
+
+            res.status(200).json({ passwordSet, success: true });
+        } catch (error) {
+            console.error(error);
+            res.status(500).json({ error: "Internal server error", message: "Something went wrong", success: false });
+        }
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: "Internal server error", message: "Something went wrong", success: false });
+    }
+});
+
 
 
 router.post('/verify-old-password', async (req, res) => {
@@ -150,7 +194,7 @@ router.put('/new-password', async (req, res) => {
         }
 
         const hashedNewPassword = await bcrypt.hash(newPassword, 10);
-        await user.update({ password: hashedNewPassword });
+        await user.update({ password: hashedNewPassword, setPassword: true });
 
         res.status(200).json({ message: "Password updated successfully", success: true });
     } catch (error) {
