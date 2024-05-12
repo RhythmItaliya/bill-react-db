@@ -57,9 +57,9 @@ router.post('/login', [
             return res.status(401).json({ wrongPassword: true, success: false });
         }
 
-        if (!user.email_verified) {
-            return res.status(401).json({ emailNotVerified: true, success: false });
-        }
+        // if (!user.email_verified) {
+        //     return res.status(401).json({ emailNotVerified: true, success: false });
+        // }
 
         const existingSession = await sessions.findOne({ where: { userId: user.id, sessionEnd: false } });
         if (existingSession) {
